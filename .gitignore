@@ -1,4 +1,2 @@
 data/aclImdb/
-notebooks/models/models/*.pt
-notebooks/models/models/*.npy
-notebooks/models/models/*.model
+notebooks/models/models/*
