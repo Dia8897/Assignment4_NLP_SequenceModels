@@ -1,2 +1,10 @@
 data/aclImdb/
 notebooks/models/models/*
+.venv/
+.venv-*/
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+models/*.pt
+models/*.npy
+models/*.model
