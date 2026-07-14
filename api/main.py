@@ -13,15 +13,15 @@ from torch.nn.utils.rnn import pack_padded_sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECKPOINT_DIR = ROOT / "notebooks" / "models" / "models"
-MODEL_PATH = CHECKPOINT_DIR / "lstm_word2vec_frozen.pt"
+MODEL_PATH = CHECKPOINT_DIR / "biltsm_word2vec_frozen.pt"
 VOCAB_PATH = ROOT / "data" / "shared" / "vocabulary.pkl"
 
-MODEL_NAME = "lstm_word2vec_frozen"
+MODEL_NAME = "biltsm_word2vec_frozen"
 METRICS = {
-    "accuracy": 0.8891576952542236,
-    "precision": 0.8678357245881728,
-    "recall": 0.9189710610932476,
-    "f1": 0.8926716901573419,
+    "accuracy": 0.90,
+    "precision": 0.91,
+    "recall": 0.88,
+    "f1": 0.90,
 }
 
 
@@ -31,7 +31,7 @@ class ReviewRequest(BaseModel):
     # predict(review) -> use review.text
 
 
-class LSTMClassifier(nn.Module):
+class BiLSTMClassifier(nn.Module):
     def __init__(self, embedding_weights: torch.Tensor, padding_idx: int):
         super().__init__()
         self.embedding = nn.Embedding.from_pretrained(
@@ -42,9 +42,10 @@ class LSTMClassifier(nn.Module):
             hidden_size=128,
             num_layers=1,
             batch_first=True,
+            bidirectional=True,
         )
         self.dropout = nn.Dropout(0.3)
-        self.output = nn.Linear(128, 1)
+        self.output = nn.Linear(128 * 2, 1)
 
     def forward(self, sequences: torch.Tensor, lengths: torch.Tensor):
         embedded = self.embedding(sequences)
@@ -52,7 +53,12 @@ class LSTMClassifier(nn.Module):
             embedded, lengths.cpu(), batch_first=True, enforce_sorted=False
         )
         _, (hidden, _) = self.lstm(packed)
-        return self.output(self.dropout(hidden[-1])).squeeze(1)
+        forward_hidden = hidden[-2]
+        backward_hidden = hidden[-1]
+        review_representation = torch.cat(
+            (forward_hidden, backward_hidden), dim=1
+        )
+        return self.output(self.dropout(review_representation)).squeeze(1)
 
 
 # The training preprocessing kept negation words because they affect sentiment
@@ -99,7 +105,7 @@ def load_model():
         state = torch.load(MODEL_PATH, map_location="cpu", weights_only=True)
         embedding_weights = state["embedding.weight"]
         # we load the embedding weights from the trained model checkpoint, not from the original Word2Vec model
-        model = LSTMClassifier(
+        model = BiLSTMClassifier(
             embedding_weights=embedding_weights,
             padding_idx=vocabulary["word_to_idx"]["<PAD>"],
         )
@@ -129,7 +135,7 @@ def health():
 def model_info():
     return {
         "name": MODEL_NAME,
-        "architecture": "LSTM",
+        "architecture": "Bidirectional LSTM",
         "embedding": "Word2Vec",
         "embedding_trainable": False,
         "task": "binary IMDB sentiment classification",
